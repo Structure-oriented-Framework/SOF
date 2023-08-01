@@ -124,33 +124,46 @@ type PortToConnect<ThisPort extends Port<any, any>> = ThisPort extends Port<
 
 #### 几种有代表性的`Component`
 
-- 管道：`Tunnel` 
-  
+- 管道：`Tunnel`
+
   用在两个 `Port` 无法直接连接时进行辅助连接。例如 `WebTunnel` 可以将不在同一个程序中的两个 `Port` 通过网络连接。
 
   ![webTunnel](./media/webTunnel.svg)
 
-#### Distributor
+- `Distributor` 用来实现超过两个或不定个数的 `Port` 之间的相互连接。
 
-`Distributor` 用来实现超过两个或不定个数的 `Port` 之间的相互连接。
+  其中一个 `Port` 发出的数据包其余的 `Port` 均能收到。这也意味着所有可以链接的端口的输入输出类型均相同
 
-其中一个 `Port` 发出的数据包其余的 `Port` 均能收到。
+  ![distributor](./media/distributor.svg)
 
-![distributor](./media/distributor.svg)
+- Extender
 
-#### Extender
+  `Extender` 用来实现一对多和多对一的 `Port` 之间的相互连接。
 
-`Extender` 用来实现一对多和多对一的 `Port` 之间的相互连接。
+  位于 `Single-End` 端的 `Port` 发出的数据能被所有 `Multi-End` 端的 `Port` 接受，或由其内部的 `Selector` 函数决定发送给哪一个端。位于 `Multi-End` 端的 `Port` 发出的数据只能被 `Single-End` 接收。
 
-位于 `Single-End` 端的 `Port` 发出的数据能被所有 `Multi-End` 端的 `Port` 接受，或由其内部的 `Selector` 函数决定发送给哪一个端。位于 `Multi-End` 端的 `Port` 发出的数据只能被 `Single-End` 接收。
+  例如，通过恰当地协调 `Selector` 的分配方式，可以通过用两个 `Extender` 与一个 `Tunnel` 组合模拟多 `Tunnel` 的组合，达到类似 `Tunnel` 复用的效果。这一点在建立多条 `Tunnel` 代价昂贵时尤其有用。
 
-例如，通过恰当地协调 `Selector` 的分配方式，可以通过用两个 `Extender` 与一个 `Tunnel` 组合模拟多 `Tunnel` 的组合，达到类似 `Tunnel` 复用的效果。这一点在建立多条 `Tunnel` 代价昂贵时尤其有用。
+  > 实现细节：`Extender`可能会被分别实现为`StaticExtender`和`DynamicExtender`。
 
-附记：两个 `Extender` 与一个 `Tunnel` 组合模拟多 `Tunnel` 的组合在路由匹配的场景下比较常见，只不过在传统的项目中，`Extender` 是耦合在诸如 `Flask` 之类的框架之中。使用两个 `Extender` 与一个 `Tunnel` 组合可以轻量级地实现路由控制的功能，而且由于 `Port` 具有对数据流数据类型的控制，可以自动实现 `api` 的合法性校验，一举两得。
+  ![extender](./media/extender.svg)
 
-![extender](./media/extender.svg)
+## 和 SOF 相关的一些概念，可能会在后续的设计中用到
 
-## SOF 框架 的辅助功能
+### 对象的三类端口
+
+- 属性端口：读写一个属性
+- 方法端口：调用一个方法
+- 回调端口：注册一个回调函数
+
+### 选择器`Selector`
+
+用于`Extender`等组件，标识某一个`Port`。不属于数据流，属于控制流。
+
+具体实现上，需要注意：
+
+1. JavaScript 的`Symbol`不支持序列化，因此很难直接用`Symbol`作为`Selector`。
+2. `Selector`最好应当可以作为（对象的）索引。
 
 ### DataClass
 
@@ -196,6 +209,6 @@ type PortToConnect<ThisPort extends Port<any, any>> = ThisPort extends Port<
 
 ## 后记
 
-由于笔者水平有限，目前没有时间没有能力实现出一套 SOF 框架，故将我对其的期盼列举于此，希望有大佬认可我提出的 SOF 框架，编写出一套可用的实现。
+本文是SOF框架的理论篇，或者说蓝图。具体的实现目前有[SOF-impl](https://github.com/Structure-oriented-Framework/SOF-impl)。如果你觉得这个框架有趣，欢迎加入我们的开发组。如果你有任何问题或建议，欢迎提出issue。
 
-以上内容都是我和陈琛在交流中想出，如有雷同纯属巧合。
+以上内容的基础由[Zecyel](https://github.com/zecyel)和[陈琛](https://github.com/FPC5719)在交流中想出。[\_Kerman](https://github.com/kermanx)略加补充。如有雷同，纯属巧合。
