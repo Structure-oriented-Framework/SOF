@@ -1,42 +1,114 @@
-# SOF, Structure-Oriented-Framework
+# SOF, the Structure-oriented Framework
 
-这里记录一些我关于“结构化框架”的一些想法，希望这些想法能为软件架构进行一些改善。
+> 本文为 SOF 框架总体思想的概览。具体实现可能与本文有所出入。
 
-## 框架的目的是什么
+> 本文中以“实现细节”为标题的部分为\_Kerman 在尝试实现 SOF 框架时的一些见解，仅供参考。
 
-在这个“结构化框架”的理念中，框架的目的是用来调控数据流与控制流，并对常用功能进行封装。
+## 为什么需要 SOF
 
-## SOF框架 的构成
+SOF 目的是调控数据流与控制流，并对常用功能进行封装。
 
-为降低程序的耦合性，SOF框架 将程序划分为各种 `Structure`，以 `Structure` 和 `Structure` 之间的连接来搭建起整个项目。以下是 SOF框架 应当包含的一些 `Structure`。
+可能的应用场景：
+
+- 前后端数据交互
+- 响应式 UI
+
+## SOF 框架 的构成
+
+为降低程序的耦合性，SOF 框架 将程序划分为各种 `Structure`，以 `Structure` 和 `Structure` 之间的**连接**来搭建起整个项目。
+
+以下是 SOF 框架 应当包含的一些 `Structure`。
+
+![overview](./media/overview.svg)
 
 ### Port
 
-`Port` 可以看作是框架的数据交互部分，它把程序划分为对象和环境，而其自身是对象和环境进行数据交互的场所。`Port` 可以且仅可以和另一个 `Port` 连接，或者 `Port` 可以悬空不连接任何结构，但绝不可以连接多个 `Port`。这些在框架实现时就应规范化。
+`Port` 可以看作是框架的数据交互部分，它把程序划分为**对象**和**环境**，而其自身是对象和环境进行数据交互的场所。
+
+`Port` 仅可以和另一个 `Port` 连接，或者不连接。
 
 `Port` 的连接是双向的，双方都可以主动通过 `Port-Port` 连接向对方发送数据，也可以通过自身在对方 `Port` 中绑定的回调函数被动接受数据。
 
-`Port` 本身并不加工处理数据，它只是数据交换接口的抽象。使用 `Port` 时尤其应注意 `is-a` 和 `have-a` 问题。例如，当需要实现一个自动转发数据的模块，则可以通过编写一种新的 `Port` 来实现该功能。而如果需要对数据进行计算，则应当编写一个 `Component` 来进行数据的计算，并在其中包含一个 `Port` 来和外界交互。`Port` 只负责：（1）接受数据并移交计算（2）对外界/环境主动发送数据。
+`Port` 本身并不加工处理数据，它只是数据交换接口的抽象。
+
+使用 `Port` 时尤其应注意 `is-a` 和 `have-a` 问题。例如，当需要实现一个自动转发数据的模块，则可以通过编写一种新的 `Port` 来实现该功能。而如果需要对数据进行计算，则应当编写一个 `Component` 来进行数据的计算，并在其中包含一个 `Port` 来和外界交互。`Port` 只负责：1. 接受数据并移交计算; 2. 对外界/环境主动发送数据。
 
 “对象-环境”的界线是相互的。如果 `Component A` 包含 `Port A`，`Component B` 包含 `Port B`，而 `Port A` 和 `Port B` 相互连接，则对于 `Component A` 而言，`Component A` 是对象（即它自己），而 `Component B` 为环境，它通过 `Port A` 实现了对象和环境的交互。而对于 `Component B` 来说则反之。
 
 对象内部是一个相对独立的区域。`Component A` 可以主动唤起 `Port A` 来向外界发送数据，也可以被 `Port A` 唤起来处理其接收到的数据。`Component A` 并不关心 `Port A` 和外界的什么结构连接了，只负责处理其包含的各个 `Port` 中流通的数据流。这即为对象内部的独立性。
 
-以下是 SOF框架 应当实现的几种 `Port`。
+#### 实现细节
 
-#### Ordinary Port
+`Port`之间的数据传输，如果通过互相绑定回调函数的方式实现，需要考虑如下问题：
 
-普通`Port`，支持与其他 `Port` 连接并传输数据。
+1. 参数问题
 
-#### Synchronized Port
+传输的数据作为回调函数的参数传入，其个数可不同。但时能够互相链接的`Port`A 和 B 应当满足 A 的输出恰与 B 的输入类型相同，反之亦然。
 
-同步`Port`，线程安全的 `Port`，除支持 `Ordinary Port` 的功能外可以防止多条数据同时发送或被接收，保证线程安全性。
+需要注意的一点是，为了数据流和控制流的分离，应当要求数个参数中，其中的任何一个参数要么是数据流，要么是控制流。
 
-注：如果 `Port` 的连接是通过互相绑定回调函数来实现的，则其自带 `Synchronized` 功能，无需编写额外的代码。
+考虑到数据可能会跨设备传递，所有传输的数据必须保证其是可序列化的。
 
-#### Lockable Port
+2. 异步还是同步？
 
-锁定式`Port`，除支持 `Ordinary Port` 的功能外可以拦截并抛弃某一个方向的数据流。如设置为 `Out-only` 则抛弃环境向对象发送的消息，如设置为 `In-only` 则抛弃对象向环境的消息。
+同步可以避免很多在传输终端的麻烦，但是异步传输使得数据可以通过 WebSocket 等方式跨设备传递。
+
+3. 错误处理
+
+由于采用回调函数的方式传输数据，任何一步中抛出的异常如果不被捕获，就会来到最初调用`send`的一方。这一点值得商榷。
+
+另外一种方式是抛出的异常均被认为会导致程序终止，而传输的成功与否通过返回值来判断。这样的话，每一个传输步骤可能需要自己捕获异常。缺点是出错后，关于出错原因的信息可能不足，但是有较好的容错能力。
+
+4. 泛型
+
+首先两个`Port`能否连接，取决于它们的输入输出类型是否对应。
+
+但是考虑如下情况：PortA 和 PortB 的输入输出分别都是一个字符串，但是 PortA 的输入输出是 JSON，而 PortB 的输入输出是 yaml。此时一般来说类型系统并不能拒绝二者的链接，但是这样的链接是没有意义的。曾经试图引入`protocol`的概念以解决这个问题，但是其大大增加了耦合度，得不偿失。
+
+一个参考：
+
+```typescript
+abstract class Port<ParamsI extends Param[], ParamsO extends Param[]> {
+  protected _linkedTo: Port<ParamsO, ParamsI> | null = null;
+
+  public get linkedTo(): Port<ParamsO, ParamsI> | null {
+    return this._linkedTo;
+  }
+
+  protected link(to: Port<ParamsO, ParamsI>): boolean {
+    this._linkedTo = to;
+    return true;
+  }
+
+  async send(...params: ParamsO): Promise<boolean> {
+    if (!this.linkedTo) return false;
+    return await this.linkedTo._recv.apply(this.linkedTo, params);
+  }
+
+  // async
+  protected abstract _recv(...params: ParamsI): Promise<boolean>;
+
+  static connect<ParamsA2B extends Param[], ParamsB2A extends Param[]>(
+    portA: Port<ParamsB2A, ParamsA2B>,
+    portB: Port<ParamsA2B, ParamsB2A>
+  ): boolean {
+    return portA.link(portB) && portB.link(portA);
+  }
+}
+
+type PortToConnect<ThisPort extends Port<any, any>> = ThisPort extends Port<
+  infer ParamsI,
+  infer ParamsO
+>
+  ? Port<ParamsO, ParamsI>
+  : never;
+```
+
+#### 几种有代表性的`Port`（作为范例，并非必须实现）
+
+- 普通端口：`OrdinaryPort`
+
+- 可锁定端口：`LockablePort`，除支持 `OrdinaryPort` 的功能外可以拦截并抛弃某一个方向的数据流。如设置为 `Out-only` 则抛弃环境向对象发送的消息，如设置为 `In-only` 则抛弃对象向环境的消息。
 
 ### Component
 
@@ -44,21 +116,25 @@
 
 一个 `Component` 应当包含一个或以上的 `Port`。如果一个对象包含 `Port` 且没有必要对其他程序提供接口，则其应当被实现为一种 `Component`。
 
-以下是 SOF框架 应当实现的几类 `Component`。
+### 实现细节
 
-#### Diode
+1. 一个`Component`中有哪些`Port`，这一点是否需要在`Component`的泛型类型中体现？目前认为是不需要的。
 
-控制数据流单向通过。
+2. 一个`Component`显然只能存在于一个进程中。
 
-#### Tunnel
+#### 几种有代表性的`Component`
 
-`Tunnel` 用在两个 `Port` 无法直接连接时进行辅助连接。例如 `WebTunnel` 可以实现不在同一个程序中的两个 `Port` 通过网络实现连接。
+- 管道：`Tunnel` 
+  用在两个 `Port` 无法直接连接时进行辅助连接。例如 `WebTunnel` 可以将不在同一个程序中的两个 `Port` 通过网络连接。
+  ![webTunnel](./media/webTunnel.svg)
 
-#### Distributer
+#### Distributor
 
-`Distributer` 用来实现超过两个或不定个数的 `Port` 之间的相互连接。
+`Distributor` 用来实现超过两个或不定个数的 `Port` 之间的相互连接。
 
 其中一个 `Port` 发出的数据包其余的 `Port` 均能收到。
+
+![distributor](./media/distributor.svg)
 
 #### Extender
 
@@ -70,7 +146,9 @@
 
 附记：两个 `Extender` 与一个 `Tunnel` 组合模拟多 `Tunnel` 的组合在路由匹配的场景下比较常见，只不过在传统的项目中，`Extender` 是耦合在诸如 `Flask` 之类的框架之中。使用两个 `Extender` 与一个 `Tunnel` 组合可以轻量级地实现路由控制的功能，而且由于 `Port` 具有对数据流数据类型的控制，可以自动实现 `api` 的合法性校验，一举两得。
 
-## SOF框架 的辅助功能
+![extender](./media/extender.svg)
+
+## SOF 框架 的辅助功能
 
 ### DataClass
 
@@ -100,11 +178,11 @@
 
 `Synchronizer` 监控其包含的 `DataClass` 中所有数据段的变化并将变化打包成一个 `Patch`（`Patch` 也是 `DataClass` 的一种，具有 `DataClass` 所具有的所有属性），通过 `Port` 发送。同样的，如果 `Synchronizer` 从其 `Port` 接受到一个 `Patch`， 则也会根据这个 `Patch` 中的数据来更新自身数据。
 
-由于 SOF框架 松耦合的特性，两个 `Synchronizer` 的 `Port` 只需要确保连接即可实现通信，而且由于 `Patch` 是 `DataClass` 的特性，使得 `Patch` 可以被序列化后在 `Tunnel` 中传输。进而，通过使用 `WebTunnel` 可以方便地实现在网络可达的设备间的 `DataClass` 同步。
+由于 SOF 框架 松耦合的特性，两个 `Synchronizer` 的 `Port` 只需要确保连接即可实现通信，而且由于 `Patch` 是 `DataClass` 的特性，使得 `Patch` 可以被序列化后在 `Tunnel` 中传输。进而，通过使用 `WebTunnel` 可以方便地实现在网络可达的设备间的 `DataClass` 同步。
 
 更进一步，如果恰当地改写数据库的调用接口，可以容易实现类似 `ORM` 的结构。
 
-由于 `Synchronizer` 的本质是数据的同步，这与 `Vue` 的 `v-bind` 有共通之处，如果使用 SOF框架 的思想编写一个前端框架也许会有意想不到的收获。
+由于 `Synchronizer` 的本质是数据的同步，这与 `Vue` 的 `v-bind` 有共通之处，如果使用 SOF 框架 的思想编写一个前端框架也许会有意想不到的收获。
 
 ### Shadow & Exposer
 
@@ -116,6 +194,6 @@
 
 ## 后记
 
-由于笔者水平有限，目前没有时间没有能力实现出一套 SOF框架，故将我对其的期盼列举于此，希望有大佬认可我提出的 SOF框架，编写出一套可用的实现。
+由于笔者水平有限，目前没有时间没有能力实现出一套 SOF 框架，故将我对其的期盼列举于此，希望有大佬认可我提出的 SOF 框架，编写出一套可用的实现。
 
 以上内容都是我和陈琛在交流中想出，如有雷同纯属巧合。
