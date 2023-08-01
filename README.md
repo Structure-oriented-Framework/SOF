@@ -125,7 +125,9 @@ type PortToConnect<ThisPort extends Port<any, any>> = ThisPort extends Port<
 #### 几种有代表性的`Component`
 
 - 管道：`Tunnel` 
+  
   用在两个 `Port` 无法直接连接时进行辅助连接。例如 `WebTunnel` 可以将不在同一个程序中的两个 `Port` 通过网络连接。
+
   ![webTunnel](./media/webTunnel.svg)
 
 #### Distributor
